@@ -60,8 +60,8 @@ class DovizcomTahvilProvider(BaseProvider):
             response = self._get(self.BASE_URL)
             soup = BeautifulSoup(response.content, "html.parser")
 
-            # Find the commodities table
-            table = soup.find("table", {"id": "commodities"})
+            # doviz.com renamed the table; keep the old id as a fallback
+            table = soup.find("table", {"id": "bonds"}) or soup.find("table", {"id": "commodities"})
             if not table:
                 raise DataNotAvailableError("Bond table not found on page")
 
@@ -78,12 +78,13 @@ class DovizcomTahvilProvider(BaseProvider):
                         continue
 
                     # Parse bond name and URL
-                    name_link = cells[0].find("a", class_="name")
-                    if not name_link:
-                        continue
+                    link = cells[0].find("a")
+                    url = link.get("href", "") if link else ""
+                    name = (row.get("data-name") or cells[0].get_text(" ", strip=True)).strip()
 
-                    name = name_link.text.strip()
-                    url = name_link.get("href", "")
+                    # The table also lists US/UK bonds; keep Turkish ones only
+                    if not (name.startswith("TR ") or "/tahvil/tr-" in url):
+                        continue
 
                     # Parse current yield
                     yield_text = cells[1].text.strip()
